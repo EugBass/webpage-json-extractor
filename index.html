@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Webpage JSON Extractor — Extract Structured Data from Any Website</title>
+  <meta name="description" content="A Chrome extension that turns any webpage into clean, structured JSON or CSV with one click. Tables, directories, job boards, product pages, and more."/>
+  <meta name="author" content="Webpage JSON Extractor"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="Webpage JSON Extractor"/>
+  <meta property="og:description" content="Turn any webpage into clean JSON or CSV in one click. No code required."/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="theme-color" content="#09090b"/>
+
+  <!-- ============================================================
+       GOOGLE ANALYTICS
+       Replace G-XXXXXXXXXX with your real GA4 Measurement ID
+       ============================================================ -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+
+  <style>
+    /* ============================================================
+       DESIGN TOKENS — change colors/fonts here
+       ============================================================ */
+    :root {
+      --bg:          #070a14;
+      --bg-card:     rgba(255,255,255,0.05);
+      --bg-card-hover: rgba(255,255,255,0.08);
+      --border:      rgba(255,255,255,0.10);
+      --border-cyan: rgba(34,211,238,0.20);
+      --text:        #f1f5f9;
+      --text-muted:  #94a3b8;
+      --cyan:        #67e8f9;
+      --cyan-btn:    #22d3ee;
+      --purple:      rgba(168,85,247,0.18);
+      --font:        ui-sans-serif, system-ui, sans-serif;
+      --radius-lg:   1.6rem;
+      --radius-xl:   2rem;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: radial-gradient(circle at top, var(--purple), transparent 34%),
+                  radial-gradient(circle at 80% 0%, rgba(34,211,238,0.16), transparent 28%),
+                  linear-gradient(180deg, #0b1020 0%, #070a14 45%, #05070d 100%);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; }
+
+    .wrap {
+      max-width: 72rem;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* ============================================================
+       NAVIGATION
+       To add a menu item: copy one <li> inside <ul class="nav-links">
+       ============================================================ */
+    nav {
+      position: sticky;
+      top: 1rem;
+      z-index: 100;
+      padding: 1rem 1.5rem 0;
+    }
+
+    .nav-inner {
+      max-width: 72rem;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      border-radius: 9999px;
+      padding: 0.75rem 1.25rem;
+      box-shadow: 0 0 30px rgba(34,211,238,0.08);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 0.875rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: linear-gradient(135deg, rgba(216,180,254,0.95), rgba(196,181,253,0.7));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 900;
+      color: #000;
+      box-shadow: 0 0 24px rgba(168,85,247,0.35);
+      flex-shrink: 0;
+    }
+
+    .logo-text p:first-child {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(103,232,249,0.8);
+    }
+    .logo-text p:last-child {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      border: 1px solid transparent;
+      border-radius: 9999px;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #cbd5e1;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .nav-links a:hover {
+      border-color: var(--border-cyan);
+      background: rgba(34,211,238,0.08);
+      color: #fff;
+    }
+
+    /* mobile nav toggle */
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      color: var(--text);
+      padding: 0.35rem 0.6rem;
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .nav-links.open { display: flex; flex-direction: column; align-items: flex-start; position: absolute; top: 4.5rem; left: 1rem; right: 1rem; background: #0b1020; border: 1px solid var(--border); border-radius: 1rem; padding: 0.75rem; gap: 0.25rem; }
+      .nav-toggle { display: block; }
+    }
+
+    /* ============================================================
+       HERO
+       ============================================================ */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 2.5rem;
+      align-items: center;
+      padding: 4rem 0 3rem;
+    }
+
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; }
+      .hero-visual { display: none; }
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid var(--border-cyan);
+      background: rgba(34,211,238,0.10);
+      border-radius: 9999px;
+      padding: 0.4rem 1rem;
+      font-size: 0.8rem;
+      color: #a5f3fc;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 0 24px rgba(34,211,238,0.08);
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.75rem);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: #cbd5e1;
+      line-height: 1.75;
+      max-width: 36rem;
+      margin-bottom: 2rem;
+    }
+
+    .hero-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.75rem;
+    }
+
+    /* ============================================================
+       BUTTONS
+       ============================================================ */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--cyan-btn);
+      color: #0f172a;
+      font-size: 0.875rem;
+      font-weight: 700;
+      padding: 0.8rem 1.4rem;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 0 25px rgba(34,211,238,0.28);
+    }
+    .btn-primary:hover { transform: scale(1.02); }
+
+    .btn-primary.soon {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-muted);
+      box-shadow: none;
+      border: 1px solid var(--border);
+      cursor: default;
+    }
+    .btn-primary.soon:hover { transform: none; }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.8rem 1.4rem;
+      border-radius: 9999px;
+      transition: all 0.15s;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.10); }
+
+    /* tags row */
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .tag {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      border-radius: 9999px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+    }
+
+    /* hero visual card */
+    .hero-visual {
+      position: relative;
+    }
+    .hero-visual-glow {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius-xl);
+      background: radial-gradient(circle, rgba(34,211,238,0.2), transparent 60%);
+      filter: blur(40px);
+    }
+    .hero-card {
+      position: relative;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(24px);
+      border-radius: var(--radius-xl);
+      padding: 1.25rem;
+      box-shadow: 0 20px 80px rgba(0,0,0,0.5);
+    }
+    .hero-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .hero-card-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3em;
+      color: rgba(103,232,249,0.75);
+    }
+    .hero-card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      margin-top: 0.2rem;
+    }
+    .badge-small {
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      border-radius: 9999px;
+      padding: 0.2rem 0.7rem;
+      font-size: 0.7rem;
+      color: #94a3b8;
+    }
+    .hero-rows { display: flex; flex-direction: column; gap: 0.6rem; }
+    .hero-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      border-radius: 1rem;
+      padding: 0.75rem 1rem;
+    }
+    .hero-row-icon {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.625rem;
+      background: rgba(34,211,238,0.15);
+      color: var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .hero-row-title { font-size: 0.875rem; font-weight: 600; color: #fff; }
+    .hero-row-desc { font-size: 0.75rem; color: #94a3b8; line-height: 1.5; }
+
+    /* ============================================================
+       SECTION HELPERS
+       ============================================================ */
+    section { padding: 3rem 0; }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 0.75rem;
+    }
+
+    .section-title {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+
+    .section-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.75;
+      max-width: 48rem;
+      margin-bottom: 2rem;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ============================================================
+       FEATURE CARDS GRID
+       ============================================================ */
+    .cards-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 900px) { .cards-4 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .cards-4 { grid-template-columns: 1fr; } }
+
+    .card {
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      backdrop-filter: blur(16px);
+      transition: transform 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-cyan);
+      background: var(--bg-card-hover);
+    }
+
+    .card-icon {
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 0.875rem;
+      border: 1px solid var(--border-cyan);
+      background: rgba(34,211,238,0.10);
+      color: var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 0 18px rgba(34,211,238,0.12);
+    }
+    .card h3 { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .card p  { font-size: 0.8rem; color: var(--text-muted); line-height: 1.65; }
+
+    /* ============================================================
+       TWO-COLUMN SECTIONS
+       ============================================================ */
+    .cols-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 700px) { .cols-2 { grid-template-columns: 1fr; } }
+
+    .panel {
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      border-radius: 1.8rem;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+    }
+    .panel h2 { font-size: 1.3rem; font-weight: 800; color: #fff; margin: 0.75rem 0 1.25rem; }
+
+    /* steps */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      border-radius: 1rem;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 3rem;
+      height: 3rem;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--cyan);
+    }
+    .step h4 { font-size: 0.9rem; font-weight: 700; color: #fff; }
+    .step p  { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; line-height: 1.5; }
+
+    /* use-case list */
+    .use-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 480px) { .use-grid { grid-template-columns: 1fr; } }
+
+    .use-item {
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      border-radius: 1rem;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    /* ============================================================
+       FAQ
+       ============================================================ */
+    .faq-list { display: flex; flex-direction: column; gap: 1rem; }
+    .faq-item {
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.5rem;
+      backdrop-filter: blur(16px);
+    }
+    .faq-q { font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .faq-a { font-size: 0.85rem; color: var(--text-muted); line-height: 1.7; }
+
+    /* ============================================================
+       CTA BANNER
+       ============================================================ */
+    .cta-banner {
+      border: 1px solid var(--border-cyan);
+      background: linear-gradient(135deg, rgba(34,211,238,0.12), rgba(168,85,247,0.12), rgba(15,23,42,0.9));
+      border-radius: var(--radius-xl);
+      padding: 2.5rem 2rem;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    @media (min-width: 700px) {
+      .cta-banner { flex-direction: row; align-items: flex-end; justify-content: space-between; }
+    }
+
+    .cta-banner h2 { font-size: 1.75rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
+    .cta-banner p  { font-size: 0.85rem; color: var(--text-muted); line-height: 1.7; max-width: 36rem; }
+    .cta-btns { display: flex; flex-wrap: wrap; gap: 0.75rem; flex-shrink: 0; }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 0;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .footer-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    @media (min-width: 600px) {
+      .footer-inner { flex-direction: row; align-items: center; justify-content: space-between; }
+    }
+    .footer-links { display: flex; gap: 1rem; }
+    .footer-links a { color: var(--text-muted); transition: color 0.15s; }
+    .footer-links a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       NAVIGATION
+       Add menu items here: <li><a href="/page">Label</a></li>
+       ============================================================ -->
+  <nav>
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <div class="logo-icon">J</div>
+        <div class="logo-text">
+          <p>Webpage JSON Extractor</p>
+          <p>one-click extraction for structured webpages</p>
+        </div>
+      </div>
+      <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">☰</button>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How it works</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="/privacy-policy.html">Privacy Policy</a></li>
+        <!-- ADD MENU ITEMS ABOVE THIS LINE -->
+      </ul>
+    </div>
+  </nav>
+
+  <div class="wrap">
+
+    <!-- ============================================================
+         HERO
+         ============================================================ -->
+    <div class="hero">
+      <div class="hero-left">
+        <div class="hero-badge">
+          ✦ local-first chrome extension for structured data extraction
+        </div>
+        <h1>turn messy webpages into clean json and csv in one click</h1>
+        <p class="hero-sub">
+          Webpage JSON Extractor helps you pull structured data from tables, card grids,
+          directories, job boards, and search result pages — without writing scraper code.
+          Review the preview, clean the fields, and export the result fast.
+        </p>
+        <div class="hero-btns">
+          <!-- ======================================================
+               CHROME STORE BUTTON
+               When extension is approved: replace href="#" with the real Store URL
+               and remove the class "soon" and the "(coming soon)" text
+               ====================================================== -->
+          <a href="#" class="btn-primary soon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            Add to Chrome &nbsp;— coming soon
+          </a>
+          <a href="#features" class="btn-ghost">Explore features →</a>
+        </div>
+        <div class="tags">
+          <span class="tag">tables</span>
+          <span class="tag">lists</span>
+          <span class="tag">directories</span>
+          <span class="tag">cards</span>
+          <span class="tag">csv export</span>
+          <span class="tag">json export</span>
+          <span class="tag">privacy-first</span>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="hero-visual-glow"></div>
+        <div class="hero-card">
+          <div class="hero-card-header">
+            <div>
+              <div class="hero-card-label">product snapshot</div>
+              <div class="hero-card-title">what the extension does</div>
+            </div>
+            <span class="badge-small">core flow</span>
+          </div>
+          <div class="hero-rows">
+            <div class="hero-row">
+              <div class="hero-row-icon">🔍</div>
+              <div><div class="hero-row-title">detect</div><div class="hero-row-desc">find tables and repeated structures on the page</div></div>
+            </div>
+            <div class="hero-row">
+              <div class="hero-row-icon">👁</div>
+              <div><div class="hero-row-title">preview</div><div class="hero-row-desc">inspect rows before export and rename fields</div></div>
+            </div>
+            <div class="hero-row">
+              <div class="hero-row-icon">📥</div>
+              <div><div class="hero-row-title">export</div><div class="hero-row-desc">download json or csv, or copy the result</div></div>
+            </div>
+            <div class="hero-row">
+              <div class="hero-row-icon">✂️</div>
+              <div><div class="hero-row-title">cleanup</div><div class="hero-row-desc">dedupe rows and normalize urls</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider"/>
+
+    <!-- ============================================================
+         FEATURES
+         To add a feature card: copy one <div class="card"> block
+         ============================================================ -->
+    <section id="features">
+      <div class="section-label">⚡ Main features</div>
+      <h2 class="section-title">Everything you need, nothing you don't</h2>
+      <div class="cards-4">
+        <div class="card">
+          <div class="card-icon">🎯</div>
+          <h3>Messy pages to clean records</h3>
+          <p>Extract tables, lists, directories, search results, and card grids into structured rows with a single click.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📄</div>
+          <h3>JSON and CSV exports</h3>
+          <p>Review the preview, rename fields, remove noise, then export to JSON or CSV instantly.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🧹</div>
+          <h3>Field cleanup built in</h3>
+          <p>Trim whitespace, dedupe rows, normalize URLs, and keep only the fields that matter.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔒</div>
+          <h3>Local-first core flow</h3>
+          <p>The main extraction runs in your browser — no backend required, no data sent anywhere.</p>
+        </div>
+        <!-- ADD FEATURE CARDS ABOVE THIS LINE -->
+      </div>
+    </section>
+
+    <hr class="divider"/>
+
+    <!-- ============================================================
+         HOW IT WORKS + IDEAL FOR
+         ============================================================ -->
+    <section id="how-it-works">
+      <div class="cols-2">
+        <div class="panel">
+          <div class="section-label">👆 How it works</div>
+          <h2>Built for fast manual extraction.</h2>
+          <div class="steps">
+            <div class="step">
+              <div class="step-num">01</div>
+              <div><h4>Open a page</h4><p>Start on a page with repeated rows, cards, or a table.</p></div>
+            </div>
+            <div class="step">
+              <div class="step-num">02</div>
+              <div><h4>Click extract</h4><p>The extension detects candidate structures and shows a preview.</p></div>
+            </div>
+            <div class="step">
+              <div class="step-num">03</div>
+              <div><h4>Export or copy</h4><p>Rename fields, remove noise, then export JSON or CSV or copy to clipboard.</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="section-label">✅ Ideal for</div>
+          <h2>Everyday data capture workflows.</h2>
+          <div class="use-grid">
+            <div class="use-item">Lead lists from directories</div>
+            <div class="use-item">Job boards and search result pages</div>
+            <div class="use-item">Product catalogs and pricing grids</div>
+            <div class="use-item">Documentation indexes and reference tables</div>
+            <div class="use-item">Content research from structured pages</div>
+            <div class="use-item">Copying data into Notion, Airtable, or spreadsheets</div>
+            <!-- ADD USE CASES ABOVE THIS LINE -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider"/>
+
+    <!-- ============================================================
+         EXTRACT FROM ANY SITE — full text section
+         ============================================================ -->
+    <section id="extract">
+      <div class="section-label">🌐 What you can extract</div>
+      <h2 class="section-title">Extract high-quality JSON from any site</h2>
+      <p class="section-desc">
+        Modern websites look beautiful but are extremely difficult to extract data from.
+        Our extension uses advanced DOM analysis and smart structure recognition to deliver
+        clean, logically organized JSON — ready for scripts, spreadsheets, AI models, or automation tools.
+      </p>
+      <div class="cards-4">
+        <div class="card">
+          <div class="card-icon">💼</div>
+          <h3>Job boards</h3>
+          <p>LinkedIn, Y Combinator, HH.ru, Indeed, Glassdoor. Captures job title, company, salary, location, requirements, benefits, and full description — perfect for recruitment databases.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🛒</div>
+          <h3>E-commerce products</h3>
+          <p>Extracts product name, price, discount, rating, reviews, specs, image URLs, SKU, stock status, and variants — ideal for price monitoring and catalog creation.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🏢</div>
+          <h3>Company profiles</h3>
+          <p>Pulls company name, description, website, social links, employee count, founding year, industry, and key contacts from startup directories.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🏠</div>
+          <h3>Real estate listings</h3>
+          <p>Grabs price, address, property type, area, rooms, floor level, photos, and agent info.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📰</div>
+          <h3>News &amp; blogs</h3>
+          <p>Extracts headline, author, publish date, full text, categories, tags, and featured images — great for content monitoring and media intelligence.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">👤</div>
+          <h3>Social &amp; professional profiles</h3>
+          <p>Captures public profile data: name, username, bio, followers, location, and verification status.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📊</div>
+          <h3>Tables &amp; directories</h3>
+          <p>Intelligently converts HTML tables, card grids, and long lists into clean arrays of JSON objects with proper nesting.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚛️</div>
+          <h3>Dynamic web apps</h3>
+          <p>Works on React, Vue, Angular, and other heavy JS applications thanks to advanced rendering-aware parsing.</p>
+        </div>
+        <!-- ADD SITE TYPE CARDS ABOVE THIS LINE -->
+      </div>
+    </section>
+
+    <hr class="divider"/>
+
+    <!-- ============================================================
+         FAQ
+         To add a question: copy one <div class="faq-item"> block
+         ============================================================ -->
+    <section id="faq">
+      <div class="section-label">❓ FAQ</div>
+      <h2 class="section-title">Common questions</h2>
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="faq-q">What does the extension extract?</div>
+          <div class="faq-a">It is designed for tables, repeated card layouts, directories, product listings, search results, and other structured webpage patterns.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q">Does it need AI for the core flow?</div>
+          <div class="faq-a">No. The initial version is code-first and works without AI. AI can be added later as an optional fallback for messy pages.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q">Where does the data go?</div>
+          <div class="faq-a">The core extraction is local-first. By default, page content is processed in your browser and exported by you. No data leaves your browser.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q">When will it be available in the Chrome Web Store?</div>
+          <div class="faq-a">The extension is currently under review. We'll update this page as soon as it's published. Stay tuned!</div>
+        </div>
+        <!-- ADD FAQ ITEMS ABOVE THIS LINE -->
+      </div>
+    </section>
+
+    <!-- ============================================================
+         CTA BANNER
+         ============================================================ -->
+    <section>
+      <div class="cta-banner">
+        <div>
+          <p style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(103,232,249,0.8);margin-bottom:0.75rem;">Privacy-first by default</p>
+          <h2>Extract locally, review quickly, export cleanly.</h2>
+          <p>The extension's core workflow is browser-local. Future integrations like webhooks and n8n can be added later as optional features.</p>
+        </div>
+        <div class="cta-btns">
+          <a href="/privacy-policy.html" class="btn-primary">Privacy policy →</a>
+          <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;" class="btn-ghost">Back to top ↑</a>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /wrap -->
+
+  <!-- ============================================================
+       FOOTER
+       Add footer links: <a href="/page">Label</a>
+       ============================================================ -->
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <p>Webpage JSON Extractor · Chrome extension for fast structured data extraction</p>
+        <div class="footer-links">
+          <a href="/privacy-policy.html">Privacy Policy</a>
+          <!-- ADD FOOTER LINKS ABOVE THIS LINE -->
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
